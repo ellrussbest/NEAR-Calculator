@@ -1,7 +1,7 @@
-/// Import `serde` from `near_sdk` crate 
-use near_sdk::serde::{Serialize, Deserialize};
+/// Import `serde` from `near_sdk` crate
+use near_sdk::serde::{Deserialize, Serialize};
 
-/// Import `borsh` from `near_sdk` crate 
+/// Import `borsh` from `near_sdk` crate
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{env, near_bindgen, PanicOnDefault};
 
@@ -19,106 +19,142 @@ pub struct Calculator {
 
 #[near_bindgen]
 impl Calculator {
-
     // initializing the contract
     #[init]
     pub fn new() -> Calculator {
-        Calculator{
+        Calculator {
             postfix: "".to_string(),
             result: 0.0,
-        }        
+        }
     }
 
     // a bool function that checks if a character is an operand
-    pub fn is_operand ( &self, ch: char ) -> bool {
+    pub fn is_operand(&self, ch: char) -> bool {
         if ch >= '0' && ch <= '9' {
             true
-        }else {
+        } else {
             false
         }
     }
 
     // a bool function that checks if a character is an operator
-    pub fn is_operator ( &self, ch: char ) -> bool {
-        if ch == '+' || ch == '-' || ch ==  '*' || ch ==  '/' || ch == '^' {
+    pub fn is_operator(&self, ch: char) -> bool {
+        if ch == '+' || ch == '-' || ch == '*' || ch == '/' || ch == '^' {
             true
-        }else {
+        } else {
             false
         }
     }
 
-    // a utitlity function used to convert an expression from infix to postfix 
-    pub fn infix_to_postfix(&mut self, expression:String) -> String {
+    // a utitlity function used to convert an expression from infix to postfix
+    pub fn infix_to_postfix(&mut self, expression: String) -> String {
+        // initializing a vector that will be used to act as a stack
         let mut stack_char: Vec<char> = Vec::new();
+
+        // initializing a counter that will help to break the loop when the size
+        // length of the string has reached
         let mut counter = 0;
+
+        // Initializing an empty string that will store the resulting postfix expression
         let mut postfix = String::from("");
+
+        // checking the length of the expression to be evaluated
         let length = expression.len();
 
+        // looping through the string and converting it to postfix expression
         loop {
-            if counter == length{
+            // if statement to break the loop when the counter is equal to the length of the string
+            if counter == length {
                 break;
             }
-            
+            // initializing a character called 'top' that will be used to store the characters that are on top
+            // of the stack
             let mut top: char = ' ';
+
+            // checking if the stack is empty; if not, we asign the character on top of the stack to the 'top'
+            // variable
             if stack_char.len() >= 1 {
                 top = stack_char[stack_char.len() - 1];
             }
+
+            // converting the specific character to its ASCII code e.g. a = 97
             let b: u8 = expression.as_bytes()[counter];
+
+            // taking the ASCII code of the given character and storing it as a character in
+            // variable ch
             let ch: char = b as char;
+
+            // checking if 'ch' is an operator or an operand or a dot (.)
+            // if it either of the above, then we proceed with our operation else the code should panick
             if self.is_operator(ch) || self.is_operand(ch) || ch == '(' || ch == ')' || ch == '.' {
-               if ch == '(' {
-                stack_char.push(ch);
-               }else if ch == ')' {
-                while !stack_char.is_empty() && top != '(' {
-                    postfix.push(top);
-                    stack_char.pop();
-                    if stack_char.len() >= 1 {
-                        top = stack_char[stack_char.len() - 1];
+                // if 'ch' is an open bracket, it should be pushed into the the stack
+                if ch == '(' {
+                    stack_char.push(ch);
+                }
+                // if 'ch' is a closing bracket, then the contents of the stack should be poped out and be pushed into
+                // our 'postfix' string variable
+                else if ch == ')' {
+                    while !stack_char.is_empty() && top != '(' {
+                        postfix.push(top);
+                        stack_char.pop();
+                        if stack_char.len() >= 1 {
+                            top = stack_char[stack_char.len() - 1];
+                        }
+                    }
+
+                    // these blocks of codes were created to remove redundant operators that were being
+                    // inserted into the postfix string
+                    let c: u8 = postfix.as_bytes()[postfix.len() - 1];
+                    let ch_a: char = c as char;
+
+                    let d: u8 = postfix.as_bytes()[postfix.len() - 2];
+                    let ch_b: char = d as char;
+
+                    if ch_a == ch_b {
+                        postfix.pop();
+                    }
+
+                    // checks if the stack is not empty
+                    // this will help to remove the residual opening brackets '('
+                    if !stack_char.is_empty() {
+                        stack_char.pop();
                     }
                 }
+                // this is supposed to push space; space will act as a seperator
+                // in our expression
+                else if self.is_operator(ch) {
+                    postfix.push(' ');
 
-                let c: u8 = postfix.as_bytes()[postfix.len() - 1];
-                let ch_a: char = c as char;
+                    // this checks for precedence of the current character in our expression e.g.
+                    // expression[i]
+                    let precedence_ch = match ch {
+                        '+' | '-' => 1,
+                        '*' | '/' => 2,
+                        '^' => 3,
+                        _ => 0,
+                    };
 
-                let d: u8 = postfix.as_bytes()[postfix.len() - 2];
-                let ch_b: char = d as char;
-
-                if ch_a == ch_b {
-                    postfix.pop();
+                    // this checks for precedence of the character on top of the stack
+                    let precedence_top = match top {
+                        '+' | '-' => 1,
+                        '*' | '/' => 2,
+                        '^' => 3,
+                        _ => 0,
+                    };
+                    // this compares the precedence of the character on top of the stack
+                    // and the the current character in the expression
+                    while !stack_char.is_empty() && precedence_ch <= precedence_top {
+                        postfix.push(top);
+                        stack_char.pop();
+                    }
+                    stack_char.push(ch);
+                } else if self.is_operand(ch) || ch == '.' {
+                    postfix.push(ch);
+                } else {
+                    let msg = format!("Error in loop postfix");
+                    env::log(msg.as_bytes());
                 }
-
-                if !stack_char.is_empty() {
-                    stack_char.pop();
-                }
-               }else if self.is_operator(ch) {
-                postfix.push(' ');
-
-                let precedence_ch = match ch {
-                    '+'|'-' => 1,
-                    '*'|'/' => 2,
-                    '^' => 3,
-                    _=> 0
-                };
-
-                let precedence_top = match top {
-                    '+'|'-' => 1,
-                    '*'|'/' => 2,
-                    '^' => 3,
-                    _=> 0
-                };
-
-                while !stack_char.is_empty() && precedence_ch <= precedence_top {
-                    postfix.push(top);
-                    stack_char.pop();
-                }
-                stack_char.push(ch);                
-               }else if self.is_operand(ch) || ch == '.' {
-                postfix.push(ch);
-               }else {
-                let msg = format!("Error in loop postfix");
-                env::log(msg.as_bytes());
-               }
-            }else {
+            } else {
                 let msg = format!("Enter the correct expression");
                 env::panic(msg.as_bytes());
             }
@@ -129,18 +165,27 @@ impl Calculator {
             postfix.push(stack_char[stack_char.len() - 1]);
             stack_char.pop();
         }
+
+        // converts postfix to an owned variable the returns the resulting postfix expression
         let res = &postfix;
         self.postfix = res.to_owned();
-        postfix      
-    } 
+        postfix
+    }
 
     // function that carries out the computation
-    pub fn solve_expression (&mut self, n1: String) -> f32 {
+    pub fn solve_expression(&mut self, n1: String) -> f32 {
+        // this variable is supposed to convert the 'n1' infix expression to postifx
         let n = self.infix_to_postfix(n1);
 
+        // we're are creating a vector that will act as a stack of floats
         let mut stack_float: Vec<f32> = Vec::new();
+
+        // creating a variable that will hold an empty string
         let mut expression: String = String::from("");
+
         let mut counter = 0;
+
+        // takes the length of our postfix expression
         let length = n.len();
 
         loop {
@@ -153,13 +198,13 @@ impl Calculator {
 
             if self.is_operand(ch) || ch == '.' {
                 expression.push(ch);
-            }else if ch == ' ' {
+            } else if ch == ' ' {
                 if expression.len() > 0 {
                     let x: f32 = expression.parse().unwrap();
                     stack_float.push(x);
                     expression = String::from("");
                 }
-            }else if self.is_operator(ch) {
+            } else if self.is_operator(ch) {
                 if expression.len() > 0 {
                     let a: f32 = expression.parse().unwrap();
                     stack_float.push(a);
@@ -177,26 +222,24 @@ impl Calculator {
                 }
 
                 match ch {
-                    '+' =>{
+                    '+' => {
                         let z: f32 = y + x;
                         stack_float.push(z);
-                    },
-                    '-' =>{ 
+                    }
+                    '-' => {
                         let z: f32 = y - x;
                         stack_float.push(z);
-                    },
-                    '*' =>{ 
+                    }
+                    '*' => {
                         let z: f32 = y * x;
                         stack_float.push(z);
-                    },
-                    '/' =>{ 
+                    }
+                    '/' => {
                         let z: f32 = y / x;
                         stack_float.push(z);
-                    },
-                    '^' =>{
-                         stack_float.push(y.powf(x))
-                    },
-                    _=>{
+                    }
+                    '^' => stack_float.push(y.powf(x)),
+                    _ => {
                         let msg = format!("Error in switch case");
                         env::panic(msg.as_bytes());
                     }
@@ -209,7 +252,7 @@ impl Calculator {
         if !stack_float.is_empty() {
             self.result = stack_float[stack_float.len() - 1];
             stack_float[stack_float.len() - 1]
-        }else{
+        } else {
             self.result = stack_float[stack_float.len() - 1];
             -1.00
         }
@@ -223,7 +266,6 @@ impl Calculator {
         let x = &self.postfix;
         x.to_owned()
     }
-
 }
 
 // Tests
@@ -253,21 +295,21 @@ mod tests {
             epoch_height: 19,
         }
     }
-    
-    #[test] 
+
+    #[test]
     fn infix_to_postfix() {
         let context = get_context(vec![], false);
         testing_env!(context);
 
         let mut calculator = Calculator::new();
         calculator.infix_to_postfix(String::from("(2^4)*2"));
-        assert_eq!("2 4^ 2*", calculator.postfix );
+        assert_eq!("2 4^ 2*", calculator.postfix);
     }
 
-    #[test] 
+    #[test]
     fn solve_expression() {
         let context = get_context(vec![], false);
-        testing_env!(context); 
+        testing_env!(context);
 
         let mut calculator = Calculator::new();
         calculator.solve_expression(String::from("(((((300*2)/5)*4)^2)+4)-4"));
